@@ -1,0 +1,11 @@
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: {{ .Values.controller.ingressClass.name }}
+  annotations:
+    ingressclass.kubernetes.io/is-default-class: {{ .Values.controller.ingressClass.isDefaultClass | quote }}
+    ingressclass.kubernetes.io/controller: {{ .Values.controller.ingressClass.controller }}
+  labels:
+    {{- include "firefighter-ingress.labels" . | nindent 4 }}
+spec:
+  controller: {{ .Values.controller.ingressClass.controller }}

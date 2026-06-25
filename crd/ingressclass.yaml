@@ -1,0 +1,9 @@
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: firefighter
+  annotations:
+    ingressclass.kubernetes.io/is-default-class: "false"
+    ingressclass.kubernetes.io/controller: pilab.dev/firefighter
+spec:
+  controller: pilab.dev/firefighter

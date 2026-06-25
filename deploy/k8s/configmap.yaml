@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: firefighter-ingress
+  namespace: firefighter
+  labels:
+    app.kubernetes.io/name: firefighter
+    app.kubernetes.io/component: ingress-controller
+data:
+  # WAF address - used by ingress controller to connect to WAF
+  waf-address: "firefighter-waf.firefighter.svc.cluster.local:50051"
+  
+  # Ingress class to watch
+  ingress-class: "firefighter"
+  
+  # Enable CRD support
+  crd-enabled: "true"
+  
+  # Log level
+  log-level: "info"

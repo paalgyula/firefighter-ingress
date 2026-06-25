@@ -1,0 +1,32 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: firefighter-ingress
+  labels:
+    app.kubernetes.io/name: firefighter
+    app.kubernetes.io/component: ingress-controller
+rules:
+  - apiGroups: [""]
+    resources: ["services", "endpoints", "secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "ingressclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses/status"]
+    verbs: ["update"]
+  - apiGroups: ["k8s.pilab.dev"]
+    resources: ["virtualservers", "virtualserverroutes", "policies"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["k8s.pilab.dev"]
+    resources: ["virtualservers/status", "virtualserverroutes/status"]
+    verbs: ["update"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "create", "update"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "create", "update"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]

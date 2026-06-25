@@ -1,0 +1,135 @@
+{{- if .Values.rbac.create -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "firefighter-ingress.fullname" . }}
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "firefighter-ingress.labels" . | nindent 4 }}
+{{- end -}}
+
+---
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "firefighter-ingress.fullname" . }}
+  labels:
+    {{- include "firefighter-ingress.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["services", "endpoints", "secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "ingressclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses/status"]
+    verbs: ["update"]
+  - apiGroups: ["k8s.pilab.dev"]
+    resources: ["virtualservers", "virtualserverroutes", "policies"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["k8s.pilab.dev"]
+    resources: ["virtualservers/status", "virtualserverroutes/status"]
+    verbs: ["update"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "create", "update"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+{{- end -}}
+
+---
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "firefighter-ingress.fullname" . }}
+  labels:
+    {{- include "firefighter-ingress.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "firefighter-ingress.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "firefighter-ingress.fullname" . }}
+    namespace: {{ .Values.namespace.name }}
+{{- end -}}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "firefighter-ingress.fullname" . }}
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "firefighter-ingress.labels" . | nindent 4 }}
+data:
+  waf-address: {{ .Values.controller.waf.address | quote }}
+  ingress-class: {{ .Values.controller.ingressClass.name | quote }}
+  crd-enabled: {{ .Values.controller.crd.enabled | quote }}
+  log-level: {{ .Values.controller.logLevel | quote }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "firefighter-ingress.fullname" . }}
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "firefighter-ingress.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.controller.replicas }}
+  selector:
+    matchLabels:
+      {{- include "firefighter-ingress.labels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "firefighter-ingress.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "firefighter-ingress.fullname" . }}
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: controller
+          image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
+          imagePullPolicy: {{ .Values.controller.image.pullPolicy }}
+          args:
+            - --waf-address={{ .Values.controller.waf.address }}
+            - --ingress-class={{ .Values.controller.ingressClass.name }}
+            - --leader-elect={{ .Values.controller.leaderElection.enabled }}
+            - --crd-enabled={{ .Values.controller.crd.enabled }}
+            - --metrics-address=:{{ .Values.controller.metrics.port }}
+            - --health-address=:{{ .Values.controller.healthz.port }}
+            - --v=1
+          securityContext:
+            {{- toYaml .Values.controller.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.controller.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.controller.healthz.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.controller.healthz.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}

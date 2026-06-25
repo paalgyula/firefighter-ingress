@@ -1,0 +1,84 @@
+controller:
+  image:
+    repository: pilab/firefighter-ingress
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    allowPrivilegeEscalation: false
+
+  serviceAccount:
+    create: true
+    name: ""
+
+  ingressClass:
+    name: firefighter
+    isDefaultClass: false
+    controller: pilab.dev/firefighter
+
+  waf:
+    address: firefighter-waf.firefighter.svc.cluster.local:50051
+    enabled: true
+
+  leaderElection:
+    enabled: true
+    leaseName: firefighter-ingress
+
+  crd:
+    enabled: true
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false
+    port: 8081
+
+  healthz:
+    port: 8082
+
+  logLevel: info
+
+  annotations: {}
+
+waf:
+  enabled: true
+  image:
+    repository: pilab/firefighter-waf
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  config:
+    listen: ":443"
+    httpEnabled: true
+    httpListen: ":80"
+
+  service:
+    type: ClusterIP
+    ports:
+      http: 80
+      https: 443
+
+namespace:
+  create: true
+  name: firefighter
+
+rbac:
+  create: true
+
+imagePullSecrets: []
+
+nameOverride: ""
+
+fullnameOverride: ""

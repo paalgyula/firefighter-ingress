@@ -1,0 +1,16 @@
+apiVersion: v2
+name: firefighter-ingress
+description: Firefighter Ingress Controller - WAF-powered Kubernetes ingress
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - firefighter
+  - waf
+  - ingress
+  - security
+maintainers:
+  - name: PiLab
+    email: gyula@pilab.hu
+sources:
+  - https://github.com/pilab-dev/firefighter

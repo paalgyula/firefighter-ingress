@@ -1,0 +1,339 @@
+syntax = "proto3";
+
+package firefighter.v1;
+
+option go_package = "github.com/pilab-dev/firefighter/gen/proto;apiv1";
+
+// Gateway Extension Service - for backends to request config
+service ExtensionService {
+  // Register registers this extension with the Gateway
+  rpc Register(RegisterRequest) returns (RegisterResponse) {}
+
+  // GetConfig returns the config for this domain pattern
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse) {}
+
+  // WatchConfig streams config updates
+  rpc WatchConfig(GetConfigRequest) returns (stream ConfigUpdate) {}
+
+  // HealthCheck checks if the extension is healthy
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse) {}
+}
+
+message RegisterRequest {
+  string extension_type = 1;  // "staticsite", "loadbalancer", "proxy"
+  string domain_pattern = 2;   // "all.example.com"
+  string socket_path = 3;       // Unix socket path where extension listens
+}
+
+message RegisterResponse {
+  bool success = 1;
+  string error = 2;
+  string vhost_id = 3;        // Unique vhost identifier
+}
+
+message GetConfigRequest {
+  string domain_pattern = 1;
+}
+
+message GetConfigResponse {
+  bool success = 1;
+  string error = 2;
+  bytes config_json = 3;
+  string vhost_id = 4;
+}
+
+message ConfigUpdate {
+  string action = 1;        // "update", "reload", "stop"
+  bytes config_json = 2;
+  int64 version = 3;
+}
+
+// VHost management - for status and control
+service VHostService {
+  rpc GetStatus(VHostStatusRequest) returns (VHostStatusResponse) {}
+  rpc WatchStatus(VHostStatusRequest) returns (stream VHostStatusEvent) {}
+  rpc StartVHost(VHostStartRequest) returns (VHostStartResponse) {}
+  rpc StopVHost(VHostStopRequest) returns (VHostStopResponse) {}
+  rpc ReloadVHost(VHostReloadRequest) returns (VHostReloadResponse) {}
+}
+
+message VHostStatusRequest {
+  string domain_pattern = 1;
+}
+
+message VHostStatusResponse {
+  string domain_pattern = 1;
+  string status = 2;          // "healthy", "starting", "stopped", "error"
+  bool ready = 3;
+  string socket_path = 4;
+  int64 start_time = 5;
+  string error = 6;
+}
+
+message VHostStatusEvent {
+  string domain_pattern = 1;
+  string status = 2;
+  bool ready = 3;
+  string socket_path = 4;
+}
+
+message VHostStartRequest {
+  string extension_type = 1;
+  string domain_pattern = 2;
+}
+
+message VHostStartResponse {
+  bool success = 1;
+  string error = 2;
+  string socket_path = 3;
+}
+
+message VHostStopRequest {
+  string domain_pattern = 1;
+}
+
+message VHostStopResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message VHostReloadRequest {
+  string domain_pattern = 1;
+}
+
+message VHostReloadResponse {
+  bool success = 1;
+  string error = 2;
+  string new_socket_path = 3;
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool healthy = 1;
+  string message = 2;
+}
+
+message StatsRequest {}
+
+message StatsResponse {
+  uint64 total_requests = 1;
+  uint64 blocked_requests = 2;
+  uint64 captcha_challenges = 3;
+  uint64 active_connections = 4;
+}
+
+message GatewayConfigRequest {
+  string config_json = 1;
+}
+
+message GatewayConfigResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// RequestEvent and ResponseEvent are now defined in firefighter_manage.proto
+// and shared between Gateway and MessagingService
+
+service AnalyzerService {
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse) {}
+  rpc GetReputation(ReputationRequest) returns (ReputationResponse) {}
+  rpc GetBans(BansRequest) returns (BansResponse) {}
+  rpc UnbanIP(UnbanIPRequest) returns (UnbanIPResponse) {}
+}
+
+message ReputationRequest {
+  string ip = 1;
+}
+
+message ReputationResponse {
+  float score = 1;
+  int64 last_updated = 2;
+  int32 event_count = 3;
+  string status = 4;
+}
+
+message BansRequest {}
+
+message BansResponse {
+  repeated BanInfo bans = 1;
+}
+
+message BanInfo {
+  string ip = 1;
+  string reason = 2;
+  int64 expires_at = 3;
+  bool permanent = 4;
+}
+
+message UnbanIPRequest {
+  string ip = 1;
+}
+
+message UnbanIPResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// ConfigPushService - for ingress controller to push vhost config
+service ConfigPushService {
+  // PushVHosts pushes vhost configurations to the Gateway
+  rpc PushVHosts(PushVHostsRequest) returns (PushVHostsResponse) {}
+
+  // DeleteVHost removes a vhost from the Gateway
+  rpc DeleteVHost(DeleteVHostRequest) returns (DeleteVHostResponse) {}
+
+  // HealthCheck checks if config push is healthy
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse) {}
+}
+
+message PushVHostsRequest {
+  repeated VHostConfig vhosts = 1;
+  string admission_token = 2;
+}
+
+message PushVHostsResponse {
+  bool success = 1;
+  string message = 2;
+  int32 updated_count = 3;
+}
+
+message DeleteVHostRequest {
+  string domain = 1;
+}
+
+message DeleteVHostResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message VHostConfig {
+  string domain = 1;
+  string domain_aliases = 2;
+  bool wildcard = 3;
+  string backend = 4;
+  string upstream = 5;
+  string cert_file = 6;
+  string key_file = 7;
+  bool acme = 8;
+  string acme_email = 9;
+  bool http_to_https = 10;
+  bool http_enabled = 11;
+  MTLSConfig mtls = 12;
+  VHostAlerting alerting = 13;
+}
+
+message MTLSConfig {
+  bool enabled = 1;
+  string client_cert_ca = 2;
+  bool request_cert = 3;
+  bool skip_verify = 4;
+}
+
+message VHostAlerting {
+  bool enabled = 1;
+  repeated AlertThreshold thresholds = 2;
+  repeated AlertChannel channels = 3;
+}
+
+message AlertThreshold {
+  string metric = 1;       // "latency_p95", "error_rate_5xx", "request_rate", "waf_block_rate"
+  string operator = 2;     // ">", "<", ">=", "<="
+  double value = 3;        // threshold value
+  string duration = 4;     // "5m", "10m" — sustain window duration
+  string severity = 5;     // "info", "warning", "critical"
+  string summary = 6;      // Human-readable alert message template
+  string description = 7;  // Longer description of what this threshold monitors
+}
+
+message AlertChannel {
+  string type = 1;         // "slack", "email", "webhook"
+  string display_name = 2; // user-facing label
+  string config_json = 3;  // JSON configuration (webhook_url, recipients, etc.)
+}
+
+// StatusService - for querying loadbalancer and downstream status
+service StatusService {
+  // GetLoadBalancersStatus returns status of all loadbalancer pools
+  rpc GetLoadBalancersStatus(LoadBalancersStatusRequest) returns (LoadBalancersStatusResponse) {}
+
+  // GetDownstreamsStatus returns status of all monitored downstreams (upstream servers)
+  rpc GetDownstreamsStatus(DownstreamsStatusRequest) returns (DownstreamsStatusResponse) {}
+
+  // WatchStatus streams status changes
+  rpc WatchStatus(WatchStatusRequest) returns (stream StatusEvent) {}
+}
+
+message LoadBalancersStatusRequest {}
+
+message LoadBalancersStatusResponse {
+  repeated LoadBalancerStatus loadbalancers = 1;
+}
+
+message LoadBalancerStatus {
+  string name = 1;
+  string algorithm = 2;         // "round_robin", "least_conn", etc.
+  PoolStatus status = 3;        // ACTIVE, DRAINING, FAILED
+  repeated UpstreamStatus upstreams = 4;
+  int64 total_requests = 5;
+  int64 healthy_upstreams = 6;
+  int64 unhealthy_upstreams = 7;
+}
+
+enum PoolStatus {
+  POOL_STATUS_UNSPECIFIED = 0;
+  POOL_STATUS_ACTIVE = 1;
+  POOL_STATUS_DRAINING = 2;
+  POOL_STATUS_FAILED = 3;
+}
+
+message UpstreamStatus {
+  string address = 1;             // "host:port"
+  bool healthy = 2;
+  int64 latency_us = 3;           // average first-byte latency in microseconds
+  int64 failures = 4;             // consecutive failures
+  int64 requests = 5;              // total requests served
+  int64 current_connections = 6;
+  int64 last_check = 7;           // unix timestamp
+}
+
+message DownstreamsStatusRequest {}
+
+message DownstreamsStatusResponse {
+  repeated DownstreamStatus downstreams = 1;
+}
+
+message DownstreamStatus {
+  string address = 1;             // "host:port"
+  DownstreamHealthStatus status = 2;
+  int64 consecutive_failures = 3;
+  int64 last_check = 4;           // unix timestamp
+  int64 latency_us = 5;           // last measured latency
+}
+
+enum DownstreamHealthStatus {
+  DOWNSTREAM_HEALTH_UNSPECIFIED = 0;
+  DOWNSTREAM_HEALTH_HEALTHY = 1;
+  DOWNSTREAM_HEALTH_UNHEALTHY = 2;
+  DOWNSTREAM_HEALTH_RECOVERING = 3;
+}
+
+message WatchStatusRequest {
+  repeated string pool_names = 1;  // empty = all pools
+}
+
+message StatusEvent {
+  string pool_name = 1;
+  string upstream_address = 2;
+  StatusEventType type = 3;
+  int64 timestamp = 4;
+  string details = 5;
+}
+
+enum StatusEventType {
+  STATUS_EVENT_UNSPECIFIED = 0;
+  STATUS_EVENT_UPSTREAM_HEALTHY = 1;
+  STATUS_EVENT_UPSTREAM_UNHEALTHY = 2;
+  STATUS_EVENT_UPSTREAM_RECOVERING = 3;
+  STATUS_EVENT_POOL_RELOADED = 4;
+}
